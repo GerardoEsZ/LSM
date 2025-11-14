@@ -1,0 +1,19 @@
+para iniciar en esta carpeta abres el cmd y pone el siguiente comando:
+
+venv\Scripts\activate
+
+
+ya que lo pongas en el mismo cmd pones:
+cd v2
+
+
+y luego ya puedes ejecutar loc códigos:
+
+# 1) Capturar secuencias (clases nuevas, Z incluida)
+python capturar_secuencias_dos_manos.py
+
+# 2) Entrenar modelo LSTM
+python entrenar_lstm_gestos.py
+
+# 3) Reconocer en tiempo real (modo letras / modo palabras)
+python reconocer_gestos_modos.py
