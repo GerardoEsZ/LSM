@@ -1,0 +1,15 @@
+# Ignorar entornos virtuales
+venv/
+env/
+
+# Ignorar archivos temporales
+__pycache__/
+*.pyc
+
+# Ignorar archivos grandes / de entrenamiento
+*.h5
+*.npz
+
+# Ignorar configuraciones de tu IDE
+.vscode/
+.idea/
