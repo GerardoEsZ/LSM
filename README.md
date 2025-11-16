@@ -35,11 +35,3 @@ Archivos generados (NO se suben a GitHub):
 - `modelo_gestos_lstm.h5` → modelo entrenado (puede ser grande).
 
 ---
-
-## 2. Instalación
-
-### 2.1. Clonar el repositorio
-
-```bash
-git clone <URL_DE_TU_REPO>
-cd <NOMBRE_DEL_REPO>
