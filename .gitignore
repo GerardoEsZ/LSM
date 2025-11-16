@@ -1,15 +1,40 @@
-# Ignorar entornos virtuales
+# === Entornos virtuales ===
 venv/
 env/
 
-# Ignorar archivos temporales
+# === Python cache ===
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
 
-# Ignorar archivos grandes / de entrenamiento
+# === Modelos y datasets grandes (NO subir) ===
 *.h5
+*.hdf5
 *.npz
+*.npy
 
-# Ignorar configuraciones de tu IDE
+# Logs
+*.log
+
+# Archivos temporales
+*.tmp
+*.bak
+*.swp
+*.swo
+
+# Config de IDEs
 .vscode/
 .idea/
+*.iml
+
+# Archivos de sistema
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Otros
+*.egg-info/
+dist/
+build/
