@@ -9,7 +9,7 @@ import os
 # ==============================
 
 MAX_SEQ_LEN = 60       # máximo de frames por secuencia (~2s)
-MIN_SEQ_LEN = 10       # mínimo de frames aceptable para guardar
+MIN_SEQ_LEN = 10       # mínimo de frames para guardar
 OUTPUT_NPZ = "gestures_sequences.npz"
 OUTPUT_LABELS = "gestures_labels.json"
 
@@ -29,7 +29,7 @@ if not clases:
 
 label_map = {i: nombre for i, nombre in enumerate(clases)}
 
-print("\nClases disponibles:")
+print("\nClases disponibles (indice : nombre):")
 for i, nombre in label_map.items():
     print(f"  {i}: {nombre}")
 
@@ -50,7 +50,7 @@ with open(OUTPUT_LABELS, "w") as f:
 print(f"\nMapa de etiquetas guardado en {OUTPUT_LABELS}: {label_map}\n")
 
 # ==============================
-# 2. FUNCIONES
+# 2. FUNCIONES AUXILIARES
 # ==============================
 
 def extraer_caracteristicas_dos_manos(results):
@@ -59,7 +59,7 @@ def extraer_caracteristicas_dos_manos(results):
     - Si falta una mano, se rellena con ceros.
     - Se centra en la muñeca de cada mano.
     - Se normaliza por tamaño.
-    - Mano izquierda se espeja en X para parecerse a la derecha.
+    - Mano izquierda se espeja en X.
     """
     right_pts = np.zeros((21, 3), dtype=np.float32)
     left_pts = np.zeros((21, 3), dtype=np.float32)
@@ -108,10 +108,14 @@ if not cap.isOpened():
     exit()
 
 print("\nControles:")
-print("  - Presiona el número de la clase (0,1,2,...) para EMPEZAR a grabar.")
-print("  - Presiona el MISMO número o 's' para DETENER y guardar.")
-print(f"  - Máximo {MAX_SEQ_LEN} frames por secuencia.")
-print("  - Presiona 'q' para salir.\n")
+print("  N = siguiente clase")
+print("  P = clase anterior")
+print("  G = empezar/detener grabación de la clase actual")
+print("  S = detener y guardar (si estás grabando)")
+print(f"  (max {MAX_SEQ_LEN} frames por secuencia)")
+print("  Q = salir\n")
+
+current_class_idx = 0  # clase seleccionada al inicio
 
 with mp_hands.Hands(
     static_image_mode=False,
@@ -121,7 +125,6 @@ with mp_hands.Hands(
 ) as hands:
 
     recording = False
-    current_label = None
     seq_buffer = []
 
     while True:
@@ -130,29 +133,35 @@ with mp_hands.Hands(
             print("No se pudo leer frame de la cámara.")
             break
 
-        # Procesamos sin voltear para que Left/Right sean correctos
+        # Procesar sin voltear (para Left/Right)
         frame_bgr = frame.copy()
         image_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
         results = hands.process(image_rgb)
 
-        # Dibujar manos detectadas
+        # Dibujar manos
         if results.multi_hand_landmarks:
             for hl in results.multi_hand_landmarks:
                 mp_drawing.draw_landmarks(frame_bgr, hl, mp_hands.HAND_CONNECTIONS)
 
-        # Volteamos solo para mostrar (espejo)
+        # Mostrar en espejo
         display = cv2.flip(frame_bgr, 1)
 
-        # Barra superior de info
-        cv2.rectangle(display, (0, 0), (display.shape[1], 90), (0, 0, 0), -1)
+        # Barra superior
+        cv2.rectangle(display, (0, 0), (display.shape[1], 100), (0, 0, 0), -1)
         cv2.putText(display, "Captura de secuencias (dos manos)", (10, 25),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
-        cv2.putText(display, "Num clase=Start/Stop | s=Stop | q=Salir", (10, 50),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (200, 200, 200), 2)
+
+        clase_txt = f"Clase actual [{current_class_idx}]: {label_map[current_class_idx]}"
+        cv2.putText(display, clase_txt, (10, 50),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (200, 200, 200), 2)
+
+        controles_txt = "N/P=clase  G=grabar  S=stop  Q=salir"
+        cv2.putText(display, controles_txt, (10, 75),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (200, 200, 0), 2)
 
         if recording:
-            texto = f"Grabando: [{current_label}] {label_map[current_label]} | frames: {len(seq_buffer)}/{MAX_SEQ_LEN}"
-            cv2.putText(display, texto, (10, 75),
+            info_rec = f"Grabando {len(seq_buffer)}/{MAX_SEQ_LEN} frames..."
+            cv2.putText(display, info_rec, (10, 100),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
 
             feat_vec = extraer_caracteristicas_dos_manos(results)
@@ -166,68 +175,70 @@ with mp_hands.Hands(
                     seq_arr = np.array(seq_buffer, dtype=np.float32)
                     seq_padded = pad_sequence(seq_arr, MAX_SEQ_LEN, seq_arr.shape[1])
                     X_list.append(seq_padded)
-                    y_list.append(current_label)
-                    print(f"✅ Secuencia guardada (clase {current_label}: {label_map[current_label]}), total={len(X_list)}")
+                    y_list.append(current_class_idx)
+                    print(f"✅ Secuencia guardada (clase {current_class_idx}: {label_map[current_class_idx]}), total={len(X_list)}")
                 else:
                     print("⚠ Secuencia demasiado corta. No se guardó.")
 
                 seq_buffer = []
-                current_label = None
 
         cv2.imshow("Captura de secuencias (dos manos)", display)
 
         key = cv2.waitKey(1) & 0xFF
-        if key == ord('q'):
+        if key == 255:
+            continue
+
+        # Convertir a char (en minúsculas para simplificar)
+        char = chr(key).lower()
+
+        if char == 'q':
             print("Saliendo...")
             break
 
-        if key != 255:
-            char = chr(key)
+        # Cambiar clase: siguiente / anterior
+        if char == 'n':
+            current_class_idx = (current_class_idx + 1) % len(label_map)
+            print(f"Clase actual -> [{current_class_idx}] {label_map[current_class_idx]}")
+        elif char == 'p':
+            current_class_idx = (current_class_idx - 1) % len(label_map)
+            print(f"Clase actual -> [{current_class_idx}] {label_map[current_class_idx]}")
 
-            # Tecla 's' para stop
-            if recording and char.lower() == 's':
+        # Empezar / detener grabación con G
+        elif char == 'g':
+            if not recording:
+                recording = True
+                seq_buffer = []
+                print(f"🎬 Iniciando grabación para clase [{current_class_idx}] {label_map[current_class_idx]}")
+            else:
+                # Detener y guardar
                 recording = False
                 if len(seq_buffer) >= MIN_SEQ_LEN:
                     seq_arr = np.array(seq_buffer, dtype=np.float32)
                     seq_padded = pad_sequence(seq_arr, MAX_SEQ_LEN, seq_arr.shape[1])
                     X_list.append(seq_padded)
-                    y_list.append(current_label)
-                    print(f"✅ Secuencia guardada (clase {current_label}: {label_map[current_label]}), total={len(X_list)}")
+                    y_list.append(current_class_idx)
+                    print(f"✅ Secuencia guardada (clase {current_class_idx}: {label_map[current_class_idx]}), total={len(X_list)}")
                 else:
                     print("⚠ Secuencia demasiado corta. No se guardó.")
                 seq_buffer = []
-                current_label = None
 
-            # Números para start/stop
-            elif char.isdigit():
-                idx = int(char)
-                if idx in label_map:
-                    if recording and idx == current_label:
-                        # Stop con el mismo número
-                        recording = False
-                        if len(seq_buffer) >= MIN_SEQ_LEN:
-                            seq_arr = np.array(seq_buffer, dtype=np.float32)
-                            seq_padded = pad_sequence(seq_arr, MAX_SEQ_LEN, seq_arr.shape[1])
-                            X_list.append(seq_padded)
-                            y_list.append(current_label)
-                            print(f"✅ Secuencia guardada (clase {current_label}: {label_map[current_label]}), total={len(X_list)}")
-                        else:
-                            print("⚠ Secuencia demasiado corta. No se guardó.")
-                        seq_buffer = []
-                        current_label = None
-                    elif not recording:
-                        # Start
-                        recording = True
-                        current_label = idx
-                        seq_buffer = []
-                        print(f"🎬 Iniciando grabación para clase {idx}: {label_map[idx]}")
-                else:
-                    print(f"No hay clase asignada al índice {idx}")
+        # Detener y guardar con S (por si prefieres esta tecla)
+        elif char == 's' and recording:
+            recording = False
+            if len(seq_buffer) >= MIN_SEQ_LEN:
+                seq_arr = np.array(seq_buffer, dtype=np.float32)
+                seq_padded = pad_sequence(seq_arr, MAX_SEQ_LEN, seq_arr.shape[1])
+                X_list.append(seq_padded)
+                y_list.append(current_class_idx)
+                print(f"✅ Secuencia guardada (clase {current_class_idx}: {label_map[current_class_idx]}), total={len(X_list)}")
+            else:
+                print("⚠ Secuencia demasiado corta. No se guardó.")
+            seq_buffer = []
 
 cap.release()
 cv2.destroyAllWindows()
 
-# Guardar a disco
+# Guardar dataset
 if X_list:
     X = np.array(X_list, dtype=np.float32)  # (N, MAX_SEQ_LEN, 126)
     y = np.array(y_list, dtype=np.int32)    # (N,)
