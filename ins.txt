@@ -17,3 +17,5 @@ python entrenar_lstm_gestos.py
 
 # 3) Reconocer en tiempo real (modo letras / modo palabras)
 python reconocer_gestos_modos.py
+
+# 4) inter
